@@ -1,10 +1,18 @@
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io'; // Импортируем для доступа к системным функциям
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'dart:async'; // Для Timer
+// import 'test.dart';
 
-void main() {
-  runApp(const MyApp());
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AndroidAlarmManager.initialize();
+  // await BackgroundService2.initialize();
+  runApp(const MyApp()); // Запуск приложения
 }
 
 class MyApp extends StatelessWidget {
@@ -36,10 +44,37 @@ class _MyHomePageState extends State<MyHomePage> {
   int _requestInterval = 10; // Значение интервала по умолчанию
   bool _appRun = true; // Переменная для хранения состояния приложения
 
+  final String _urlString = "http://mail.him-met.ru:83/set-ip/";
+  Timer? _timer; // Описание таймера как null
+
   @override
   void initState() {
     super.initState();
+    // BackgroundService.stop();
     _loadAppRunState(); // Загружаем состояние при инициализации
+  }
+
+  void _startSendingRequests() {
+    // Останавливаем предыдущий таймер, если он запущен
+    _timer?.cancel(); // Используйте ?. чтобы избежать ошибки, если _timer уже null
+    // Запускаем новый таймер
+    _timer = Timer.periodic(Duration(seconds: _requestInterval), (timer) {
+      _sendCurlRequest(); // Метод отправки запроса
+    });
+  }
+
+
+  Future<void> _sendCurlRequest() async {
+    try {
+      final response = await http.get(Uri.parse(_urlString));
+      if (response.statusCode == 200) {
+        print("Запрос успешен: ${response.body}"); // Для отладки
+      } else {
+        print("Ошибка: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Ошибка при отправке запроса: $e");
+    }
   }
 
   Future<void> _loadAppRunState() async {
@@ -48,6 +83,9 @@ class _MyHomePageState extends State<MyHomePage> {
       _requestInterval = prefs.getInt('request_interval') ?? 10; // Загружаем интервал отправки
       _controller.text = _requestInterval.toString(); // Устанавливаем текст в TextField
       _appRun = prefs.getBool('appRun') ?? true; // По умолчанию true, если значение не найдено
+      if (_appRun) {
+        _startSendingRequests(); // Начинаем отправку запросов, если приложение запущено
+      }
     });
   }
 
@@ -77,17 +115,27 @@ class _MyHomePageState extends State<MyHomePage> {
       _requestInterval = numberValue; // Обновляем переменную _requestInterval
     });
     print('Значение сохранено: $numberValue'); // Для отладки
+
+    if (_appRun) {
+      _startSendingRequests(); // Перезапускаем таймер
+    }
   }
 
 
   void _minimizeApp() {
     // Действие для закрытия или сворачивания приложения
     if (Platform.isAndroid) {
-      SystemNavigator.pop();
+      // SystemNavigator.pop();
+      SystemChannels.platform.invokeMethod('SystemNavigator.pop');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Свернуть приложение не поддерживается на этой платформе')),
       );
+    }
+
+    if (_appRun) {
+      print("RUN!!!!!");
+      // BackgroundService.start();
     }
   }
 
@@ -96,7 +144,11 @@ class _MyHomePageState extends State<MyHomePage> {
       _appRun = false; // Установка состояния
     });
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    prefs.setBool('appRun', _appRun); // Сохраняем состояние в SharedPreferences
+    await prefs.setBool('appRun', _appRun); // Сохраняем состояние в SharedPreferences
+
+    // BackgroundService.stop();
+    _timer?.cancel(); // Остановка таймера
+    print('Отправка IP прекращена'); // Для отладки
   }
 
   void _sendStart() async {
@@ -104,7 +156,17 @@ class _MyHomePageState extends State<MyHomePage> {
       _appRun = true; // Установка состояния
     });
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    prefs.setBool('appRun', _appRun); // Сохраняем состояние в SharedPreferences
+    await prefs.setBool('appRun', _appRun); // Сохраняем состояние в SharedPreferences
+
+    // BackgroundService.start();
+    _startSendingRequests(); // (Не обязательно, если запускается через службу)
+    print('Отправка IP возобновлена'); // Для отладки
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel(); // Удаляем таймер при уничтожении
+    super.dispose();
   }
 
   @override
