@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io'; // Импортируем для доступа к системным функциям
 
 void main() {
   runApp(const MyApp());
@@ -7,119 +10,202 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'App send Email',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  const MyHomePage({super.key});
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  final TextEditingController _controller = TextEditingController(text: '10'); // Значение по умолчанию 10
+  final int _minValue = 10; // Минимальное значение
+  int _requestInterval = 10; // Значение интервала по умолчанию
+  bool _appRun = true; // Переменная для хранения состояния приложения
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    super.initState();
+    _loadAppRunState(); // Загружаем состояние при инициализации
+  }
+
+  Future<void> _loadAppRunState() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _requestInterval = prefs.getInt('request_interval') ?? 10; // Загружаем интервал отправки
+      _controller.text = _requestInterval.toString(); // Устанавливаем текст в TextField
+      _appRun = prefs.getBool('appRun') ?? true; // По умолчанию true, если значение не найдено
     });
+  }
+
+  Future<void> _saveSettings() async {
+    String inputValue = _controller.text; // Получаем значение из TextField
+    int? numberValue = int.tryParse(inputValue); // Пробуем преобразовать строку в число
+
+    // Проверка на корректность ввода
+    if (numberValue == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Пожалуйста, введите корректное целое число')),
+      );
+      return; // Выход из метода, если значение не число
+    }
+
+    if (numberValue < _minValue) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Пожалуйста, введите целое число не меньше 10')),
+      );
+      return; // Выход из метода, если значение меньше минимального
+    }
+
+    // Если все проверки пройдены, сохраняем значение
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('request_interval', numberValue); // Сохраняем значение в SharedPreferences
+    setState(() {
+      _requestInterval = numberValue; // Обновляем переменную _requestInterval
+    });
+    print('Значение сохранено: $numberValue'); // Для отладки
+  }
+
+
+  void _minimizeApp() {
+    // Действие для закрытия или сворачивания приложения
+    if (Platform.isAndroid) {
+      SystemNavigator.pop();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Свернуть приложение не поддерживается на этой платформе')),
+      );
+    }
+  }
+
+  void _sendStop() async {
+    setState(() {
+      _appRun = false; // Установка состояния
+    });
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setBool('appRun', _appRun); // Сохраняем состояние в SharedPreferences
+  }
+
+  void _sendStart() async {
+    setState(() {
+      _appRun = true; // Установка состояния
+    });
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setBool('appRun', _appRun); // Сохраняем состояние в SharedPreferences
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('App for email'), // Заголовок
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0), // Отступы по бокам
         child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.start, // Начинаем размещение с верха
           children: <Widget>[
+            const SizedBox(height: 20), // Отступ сверху
             const Text(
-              'You have pushed the button this many times:',
+              'Приложение для отправки IP-адресов. Необходимо для работы с Email.',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
             ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+            const SizedBox(height: 20),
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black), // Цвет текста по умолчанию
+                children: <TextSpan>[
+                  const TextSpan(text: 'Статус приложения: '),
+                  TextSpan(
+                    text: _appRun ? 'отправляет запросы' : 'не отправляет запросы',
+                    style: TextStyle(
+                      color: _appRun ? Colors.green : Colors.red, // Зеленый, если отправляет запросы, красный в противном случае
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 20), // Отступ между текстом и остальной частью
+            const Text(
+              'Настройки приложения', // Второй заголовок
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20), // Отступ между заголовками и остальной частью
+            const Text(
+              'Отправлять запрос раз в:',
+            ),
+            // Используем Row для размещения TextField и кнопки рядом
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                Container(
+                  width: 120, // Ширина текстового поля
+                  child: TextField(
+                    controller: _controller,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Целое число',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10), // Отступ между полем и кнопкой
+                Row(
+                  children: [
+                    const Text('сек'), // Добавленный текст
+                    const SizedBox(width: 10), // Отступ между текстом и кнопкой
+                    ElevatedButton(
+                      onPressed: _saveSettings,
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _minimizeApp, // Свернуть приложение
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue, // Цвет кнопки
+              ),
+              child: const Text('Свернуть приложение'),
+            ),
+            const SizedBox(height: 20), // Увеличиваем отступ между кнопками
+            if (_appRun) ...[
+              ElevatedButton(
+                onPressed: _sendStop, // Прекратить отправку IP
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange, // Цвет кнопки
+                ),
+                child: const Text('Прекратить отправку IP'),
+              ),
+            ],
+            if (!_appRun) ...[
+              ElevatedButton(
+                onPressed: _sendStart, // Возобновить отправку IP
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green, // Цвет кнопки
+                ),
+                child: const Text('Возобновить отправку IP'),
+              ),
+            ],
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
