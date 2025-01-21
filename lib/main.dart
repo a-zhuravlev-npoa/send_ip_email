@@ -4,15 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
-import 'dart:async'; // Для Timer
-// import 'test.dart';
-
+import 'dart:async';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AndroidAlarmManager.initialize();
-  // await BackgroundService2.initialize();
-  runApp(const MyApp()); // Запуск приложения
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -40,35 +37,41 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final TextEditingController _controller = TextEditingController(text: '10'); // Значение по умолчанию 10
+  final TextEditingController _nameController = TextEditingController(); // Контроллер для имени
   final int _minValue = 10; // Минимальное значение
   int _requestInterval = 10; // Значение интервала по умолчанию
-  bool _appRun = true; // Переменная для хранения состояния приложения
-
+  bool _sendRequest = false; // Отправка запросов включена / выключена
+  bool _nameSave = false;
+  String? _name; // Имя пользователя
   final String _urlString = "http://mail.him-met.ru:83/set-ip/";
-  Timer? _timer; // Описание таймера как null
+  Timer? _timer;
 
+  // Добавим слушатель на изменение текста
   @override
   void initState() {
     super.initState();
-    // BackgroundService.stop();
-    _loadAppRunState(); // Загружаем состояние при инициализации
+    _loadAppRunState();
+    _loadName(); // Загружаем имя при инициализации
+
+    _nameController.addListener(_saveName); // Добавляем слушатель
   }
 
   void _startSendingRequests() {
-    // Останавливаем предыдущий таймер, если он запущен
-    _timer?.cancel(); // Используйте ?. чтобы избежать ошибки, если _timer уже null
-    // Запускаем новый таймер
+    _timer?.cancel();
     _timer = Timer.periodic(Duration(seconds: _requestInterval), (timer) {
-      _sendCurlRequest(); // Метод отправки запроса
+      _sendCurlRequest();
     });
   }
 
-
   Future<void> _sendCurlRequest() async {
     try {
-      final response = await http.get(Uri.parse(_urlString));
+      String param = 'myParam';
+      final response = await http.get(Uri.parse('$_urlString?name=$_name'));
+
+      print(response);
+
       if (response.statusCode == 200) {
-        print("Запрос успешен: ${response.body}"); // Для отладки
+        print("Запрос успешен: ${response.body}");
       } else {
         print("Ошибка: ${response.statusCode}");
       }
@@ -80,52 +83,69 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _loadAppRunState() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _requestInterval = prefs.getInt('request_interval') ?? 10; // Загружаем интервал отправки
-      _controller.text = _requestInterval.toString(); // Устанавливаем текст в TextField
-      _appRun = prefs.getBool('appRun') ?? true; // По умолчанию true, если значение не найдено
-      if (_appRun) {
-        _startSendingRequests(); // Начинаем отправку запросов, если приложение запущено
+      _requestInterval = prefs.getInt('request_interval') ?? 10;
+      _controller.text = _requestInterval.toString();
+      _sendRequest = prefs.getBool('sendRequest') ?? false;
+      if (_sendRequest) {
+        _startSendingRequests();
+      }
+    });
+  }
+
+  Future<void> _loadName() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _name = prefs.getString('user_name'); // Загружаем имя
+      _nameController.text = _name ?? ''; // Устанавливаем текст в TextField
+    });
+  }
+
+  // Метод для сохранения имени в SharedPreferences
+  Future<void> _saveName() async {
+    String userName = _nameController.text; // Получаем значение из TextField
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_name', userName); // Сохраняем имя в SharedPreferences
+    setState(() {
+      _name = userName; // Обновляем состояние имени
+
+      if (_name != null && _name!.isNotEmpty && _nameSave) {
+        _sendRequest = true;
       }
     });
   }
 
   Future<void> _saveSettings() async {
-    String inputValue = _controller.text; // Получаем значение из TextField
-    int? numberValue = int.tryParse(inputValue); // Пробуем преобразовать строку в число
+    String inputValue = _controller.text;
+    int? numberValue = int.tryParse(inputValue);
 
-    // Проверка на корректность ввода
     if (numberValue == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Пожалуйста, введите корректное целое число')),
       );
-      return; // Выход из метода, если значение не число
+      return;
     }
 
     if (numberValue < _minValue) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Пожалуйста, введите целое число не меньше 10')),
       );
-      return; // Выход из метода, если значение меньше минимального
+      return;
     }
 
-    // Если все проверки пройдены, сохраняем значение
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('request_interval', numberValue); // Сохраняем значение в SharedPreferences
+    await prefs.setInt('request_interval', numberValue);
     setState(() {
-      _requestInterval = numberValue; // Обновляем переменную _requestInterval
+      _requestInterval = numberValue;
     });
-    print('Значение сохранено: $numberValue'); // Для отладки
+    print('Значение сохранено: $numberValue');
 
-    if (_appRun) {
-      _startSendingRequests(); // Перезапускаем таймер
+    if (_sendRequest) {
+      _startSendingRequests();
     }
   }
 
-
   void _minimizeApp() {
-    // Действие для закрытия или сворачивания приложения
     if (Platform.isAndroid) {
-      // SystemNavigator.pop();
       SystemChannels.platform.invokeMethod('SystemNavigator.pop');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -133,39 +153,43 @@ class _MyHomePageState extends State<MyHomePage> {
       );
     }
 
-    if (_appRun) {
+    if (_sendRequest) {
       print("RUN!!!!!");
-      // BackgroundService.start();
     }
   }
 
   void _sendStop() async {
     setState(() {
-      _appRun = false; // Установка состояния
+      _sendRequest = false;
     });
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('appRun', _appRun); // Сохраняем состояние в SharedPreferences
-
-    // BackgroundService.stop();
-    _timer?.cancel(); // Остановка таймера
-    print('Отправка IP прекращена'); // Для отладки
+    await prefs.setBool('sendRequest', _sendRequest);
+    _timer?.cancel();
+    print('Отправка IP прекращена');
   }
 
   void _sendStart() async {
+    if (_name == null || _name!.isEmpty) {
+      print('Имя не задано, отправка IP невозможна');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Вы не задали имя')),
+      );
+      return;
+    }
+
     setState(() {
-      _appRun = true; // Установка состояния
+      _sendRequest = true;
     });
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('appRun', _appRun); // Сохраняем состояние в SharedPreferences
-
-    // BackgroundService.start();
-    _startSendingRequests(); // (Не обязательно, если запускается через службу)
-    print('Отправка IP возобновлена'); // Для отладки
+    await prefs.setBool('sendRequest', _sendRequest);
+    _startSendingRequests();
+    print('Отправка IP возобновлена');
   }
 
   @override
   void dispose() {
-    _timer?.cancel(); // Удаляем таймер при уничтожении
+    _timer?.cancel();
+    _nameController.removeListener(_saveName); // Удаляем слушатель
     super.dispose();
   }
 
@@ -174,14 +198,14 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Text('App for email'), // Заголовок
+        title: const Text('App for email'),
       ),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0), // Отступы по бокам
+        padding: const EdgeInsets.symmetric(horizontal: 20.0),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.start, // Начинаем размещение с верха
+          mainAxisAlignment: MainAxisAlignment.start,
           children: <Widget>[
-            const SizedBox(height: 20), // Отступ сверху
+            const SizedBox(height: 20),
             const Text(
               'Приложение для отправки IP-адресов. Необходимо для работы с Email.',
               style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
@@ -189,33 +213,71 @@ class _MyHomePageState extends State<MyHomePage> {
             const SizedBox(height: 20),
             RichText(
               text: TextSpan(
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black), // Цвет текста по умолчанию
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
                 children: <TextSpan>[
                   const TextSpan(text: 'Статус приложения: '),
                   TextSpan(
-                    text: _appRun ? 'отправляет запросы' : 'не отправляет запросы',
+                    text: _sendRequest ? 'отправляет запросы' : 'не отправляет запросы',
                     style: TextStyle(
-                      color: _appRun ? Colors.green : Colors.red, // Зеленый, если отправляет запросы, красный в противном случае
+                      color: _sendRequest ? Colors.green : Colors.red,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20), // Отступ между текстом и остальной частью
+            const SizedBox(height: 20),
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
+                children: <TextSpan>[
+                  const TextSpan(text: 'Отправлять запросы от имени: '),
+                  TextSpan(
+                    text: (_name != null && _name!.isNotEmpty) ? _name : 'имя не задано',
+                    style: TextStyle(
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
             const Text(
-              'Настройки приложения', // Второй заголовок
+              'Настройки приложения',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 20), // Отступ между заголовками и остальной частью
+            const SizedBox(height: 20),
+            const Text(
+              'Ваше имя:',
+            ),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Ваше имя',
+              ),
+            ),
+
+            // Имя не задано
+            if (_name == null || _name!.isEmpty) ...[
+              const SizedBox(height: 20),
+              RichText(
+                text: TextSpan(
+                  text: 'Имя не должно быть пустым! Введите имя и нажмите кнопку "Включить отправку IP."',
+                  style: TextStyle(color: Colors.red), // Здесь устанавливаем цвет текста
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 30),
             const Text(
               'Отправлять запрос раз в:',
             ),
-            // Используем Row для размещения TextField и кнопки рядом
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
                 Container(
-                  width: 120, // Ширина текстового поля
+                  width: 120,
                   child: TextField(
                     controller: _controller,
                     keyboardType: TextInputType.number,
@@ -225,11 +287,11 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10), // Отступ между полем и кнопкой
+                const SizedBox(width: 10),
                 Row(
                   children: [
-                    const Text('сек'), // Добавленный текст
-                    const SizedBox(width: 10), // Отступ между текстом и кнопкой
+                    const Text('сек'),
+                    const SizedBox(width: 10),
                     ElevatedButton(
                       onPressed: _saveSettings,
                       child: const Text('OK'),
@@ -240,31 +302,47 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _minimizeApp, // Свернуть приложение
+              onPressed: _minimizeApp,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue, // Цвет кнопки
+                backgroundColor: Colors.blue,
               ),
               child: const Text('Свернуть приложение'),
             ),
-            const SizedBox(height: 20), // Увеличиваем отступ между кнопками
-            if (_appRun) ...[
+            const SizedBox(height: 20),
+
+            // Имя задано и запросы отправляются
+            if (_sendRequest && _name != null && _name!.isNotEmpty) ...[
               ElevatedButton(
-                onPressed: _sendStop, // Прекратить отправку IP
+                onPressed: _sendStop,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange, // Цвет кнопки
+                  backgroundColor: Colors.orange,
                 ),
                 child: const Text('Прекратить отправку IP'),
               ),
             ],
-            if (!_appRun) ...[
+
+            //  Имя задано и отправка запросов остановлена
+            if (!_sendRequest && _name != null && _name!.isNotEmpty) ...[
               ElevatedButton(
-                onPressed: _sendStart, // Возобновить отправку IP
+                onPressed: _sendStart,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green, // Цвет кнопки
+                  backgroundColor: Colors.green,
                 ),
                 child: const Text('Возобновить отправку IP'),
               ),
             ],
+
+            // Имя не задано
+            if ((_name == null || _name!.isEmpty)) ...[
+              ElevatedButton(
+                onPressed: _sendStart,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                ),
+                child: const Text('Включить отправку IP'),
+              ),
+            ],
+            const SizedBox(height: 50),
           ],
         ),
       ),
