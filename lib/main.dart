@@ -37,14 +37,15 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final TextEditingController _controller = TextEditingController(text: '10'); // Значение по умолчанию 10
-  final TextEditingController _nameController = TextEditingController(); // Контроллер для имени
   final int _minValue = 10; // Минимальное значение
   int _requestInterval = 10; // Значение интервала по умолчанию
   bool _sendRequest = false; // Отправка запросов включена / выключена
-  bool _nameSave = false;
-  String? _name; // Имя пользователя
   final String _urlString = "http://mail.him-met.ru:83/set-ip/";
   Timer? _timer;
+
+  final TextEditingController _nameController = TextEditingController(); // Контроллер для имени (????????)
+  String? _name; // Имя пользователя
+  bool _nameIsEmpty = true; // При первом запуске приложения - имя всегда пустое
 
   // Добавим слушатель на изменение текста
   @override
@@ -96,6 +97,7 @@ class _MyHomePageState extends State<MyHomePage> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       _name = prefs.getString('user_name'); // Загружаем имя
+      _nameIsEmpty = _name!.isEmpty;
       _nameController.text = _name ?? ''; // Устанавливаем текст в TextField
     });
   }
@@ -107,10 +109,7 @@ class _MyHomePageState extends State<MyHomePage> {
     await prefs.setString('user_name', userName); // Сохраняем имя в SharedPreferences
     setState(() {
       _name = userName; // Обновляем состояние имени
-
-      if (_name != null && _name!.isNotEmpty && _nameSave) {
-        _sendRequest = true;
-      }
+      // print(_name);
     });
   }
 
@@ -170,6 +169,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   void _sendStart() async {
     if (_name == null || _name!.isEmpty) {
+      _nameIsEmpty = true;
+      _sendRequest = false;
       print('Имя не задано, отправка IP невозможна');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Вы не задали имя')),
@@ -178,12 +179,13 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     setState(() {
+      _nameIsEmpty = false;
       _sendRequest = true;
     });
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('sendRequest', _sendRequest);
     _startSendingRequests();
-    print('Отправка IP возобновлена');
+    print('Отправка IP включена');
   }
 
   @override
@@ -256,6 +258,17 @@ class _MyHomePageState extends State<MyHomePage> {
                 border: OutlineInputBorder(),
                 hintText: 'Ваше имя',
               ),
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (text) {
+                if (text.isNotEmpty) {
+                  // Изменяем первую букву на заглавную
+                  final capitalized = text[0].toUpperCase() + text.substring(1);
+                  _nameController.value = _nameController.value.copyWith(
+                    text: capitalized,
+                    selection: TextSelection.collapsed(offset: capitalized.length),
+                  );
+                }
+              },
             ),
 
             // Имя не задано
@@ -310,8 +323,32 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             const SizedBox(height: 20),
 
+
+
+            // Имя не задано и запросы не отправляются
+            if(_nameIsEmpty && !_sendRequest) ...[
+              ElevatedButton(
+                onPressed: _sendStart,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                ),
+                child: const Text('Включить отправку IP'),
+              ),
+            ],
+
+            // Имя задано и запросы не отправляются
+            if (!_nameIsEmpty && !_sendRequest) ...[
+              ElevatedButton(
+                onPressed: _sendStart,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                ),
+                child: const Text('Включить отправку IP'),
+              ),
+            ],
+
             // Имя задано и запросы отправляются
-            if (_sendRequest && _name != null && _name!.isNotEmpty) ...[
+            if (!_nameIsEmpty && _sendRequest) ...[
               ElevatedButton(
                 onPressed: _sendStop,
                 style: ElevatedButton.styleFrom(
@@ -321,27 +358,6 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ],
 
-            //  Имя задано и отправка запросов остановлена
-            if (!_sendRequest && _name != null && _name!.isNotEmpty) ...[
-              ElevatedButton(
-                onPressed: _sendStart,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                ),
-                child: const Text('Возобновить отправку IP'),
-              ),
-            ],
-
-            // Имя не задано
-            if ((_name == null || _name!.isEmpty)) ...[
-              ElevatedButton(
-                onPressed: _sendStart,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                ),
-                child: const Text('Включить отправку IP'),
-              ),
-            ],
             const SizedBox(height: 50),
           ],
         ),
