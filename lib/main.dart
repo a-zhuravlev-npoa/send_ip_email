@@ -105,6 +105,7 @@ class _MyHomePageState extends State<MyHomePage> {
     await Workmanager().registerPeriodicTask(
       startPeriodicTask,
       startPeriodicTask,
+      initialDelay: Duration(seconds: 10),
       frequency: Duration(minutes: _requestInterval),
     );
   }
