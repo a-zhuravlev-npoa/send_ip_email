@@ -1,14 +1,57 @@
-import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+// import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:async';
+import 'package:workmanager/workmanager.dart';
+
+
+const startPeriodicTask = "ru.ssh.send_ip_email.startPeriodicTask";
+final String urlString = "http://mail.him-met.ru:83/set-ip/";
+
+Future<void> sendCurlRequest() async {
+  final prefs = await SharedPreferences.getInstance();
+  String nameStr = prefs.getString('user_name') ?? '';
+
+  try {
+    String responseStr = '$urlString?name=$nameStr';
+    final response = await http.get(Uri.parse(responseStr));
+    print("Отправляю запрос: $responseStr");
+    print("Получаю ответ: $response");
+
+    if (response.statusCode == 200) {
+      print("Запрос успешен: ${response.body}");
+    } else {
+      print("Ошибка: ${response.statusCode}");
+    }
+  } catch (e) {
+    print("Ошибка при отправке запроса: $e");
+  }
+}
+
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+
+    switch (task) {
+      case startPeriodicTask:
+        sendCurlRequest();
+        print("$startPeriodicTask was executed");
+        print("==================");
+
+        break;
+      default:
+        return Future.value(false);
+    }
+    return Future.value(true);
+  });
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AndroidAlarmManager.initialize();
+  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
   runApp(const MyApp());
 }
 
@@ -36,15 +79,13 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final TextEditingController _controller = TextEditingController(text: '10'); // Значение по умолчанию 10
-  final int _minValue = 10; // Минимальное значение
-  int _requestInterval = 10; // Значение интервала по умолчанию
+  final TextEditingController _controller = TextEditingController(text: '15'); // Значение по умолчанию 15
+  final int _minValue = 15; // Минимальное значение
+  int _requestInterval = 15; // Значение интервала по умолчанию
   bool _sendRequest = false; // Отправка запросов включена / выключена
-  final String _urlString = "http://mail.him-met.ru:83/set-ip/";
-  Timer? _timer;
 
-  final TextEditingController _nameController = TextEditingController(); // Контроллер для имени (????????)
   String? _name; // Имя пользователя
+  final TextEditingController _nameController = TextEditingController(); // Контроллер для имени (????????)
   bool _nameIsEmpty = true; // При первом запуске приложения - имя всегда пустое
 
   // Добавим слушатель на изменение текста
@@ -57,34 +98,21 @@ class _MyHomePageState extends State<MyHomePage> {
     _nameController.addListener(_saveName); // Добавляем слушатель
   }
 
-  void _startSendingRequests() {
-    _timer?.cancel();
-    _timer = Timer.periodic(Duration(seconds: _requestInterval), (timer) {
-      _sendCurlRequest();
-    });
-  }
+  void _startSendingRequests() async {
+    // Запускаем первый раз по кнопке - потом по расписанию
+    sendCurlRequest();
 
-  Future<void> _sendCurlRequest() async {
-    try {
-      String param = 'myParam';
-      final response = await http.get(Uri.parse('$_urlString?name=$_name'));
-
-      print(response);
-
-      if (response.statusCode == 200) {
-        print("Запрос успешен: ${response.body}");
-      } else {
-        print("Ошибка: ${response.statusCode}");
-      }
-    } catch (e) {
-      print("Ошибка при отправке запроса: $e");
-    }
+    await Workmanager().registerPeriodicTask(
+      startPeriodicTask,
+      startPeriodicTask,
+      frequency: Duration(minutes: _requestInterval),
+    );
   }
 
   Future<void> _loadAppRunState() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _requestInterval = prefs.getInt('request_interval') ?? 10;
+      _requestInterval = prefs.getInt('request_interval') ?? 15;
       _controller.text = _requestInterval.toString();
       _sendRequest = prefs.getBool('sendRequest') ?? false;
       if (_sendRequest) {
@@ -96,9 +124,9 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _loadName() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _name = prefs.getString('user_name'); // Загружаем имя
-      _nameIsEmpty = _name!.isEmpty;
-      _nameController.text = _name ?? ''; // Устанавливаем текст в TextField
+      _name = prefs.getString('user_name');
+      _nameIsEmpty = _name == null || _name!.isEmpty; // Убедиться, что мы проверяем на null
+      _nameController.text = _name ?? ''; // Установите текст контроллера
     });
   }
 
@@ -126,7 +154,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if (numberValue < _minValue) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Пожалуйста, введите целое число не меньше 10')),
+        const SnackBar(content: Text('Пожалуйста, введите целое число не меньше 15')),
       );
       return;
     }
@@ -151,10 +179,6 @@ class _MyHomePageState extends State<MyHomePage> {
         const SnackBar(content: Text('Свернуть приложение не поддерживается на этой платформе')),
       );
     }
-
-    if (_sendRequest) {
-      print("RUN!!!!!");
-    }
   }
 
   void _sendStop() async {
@@ -163,7 +187,7 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('sendRequest', _sendRequest);
-    _timer?.cancel();
+    await Workmanager().cancelAll();
     print('Отправка IP прекращена');
   }
 
@@ -190,7 +214,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   void dispose() {
-    _timer?.cancel();
     _nameController.removeListener(_saveName); // Удаляем слушатель
     super.dispose();
   }
@@ -303,7 +326,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 const SizedBox(width: 10),
                 Row(
                   children: [
-                    const Text('сек'),
+                    const Text('мин'),
                     const SizedBox(width: 10),
                     ElevatedButton(
                       onPressed: _saveSettings,
