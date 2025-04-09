@@ -1,11 +1,10 @@
-// import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'dart:async';
-import 'package:workmanager/workmanager.dart';
 
 
 const startPeriodicTask = "ru.ssh.send_ip_email.startPeriodicTask";
@@ -33,60 +32,198 @@ Future<void> sendCurlRequest() async {
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
-  Workmanager().executeTask((task, inputData) async {
+  FlutterForegroundTask.setTaskHandler(MyTaskHandler());
+}
 
-    switch (task) {
-      case startPeriodicTask:
-        sendCurlRequest();
-        print("$startPeriodicTask was executed");
-        print("==================");
+class MyTaskHandler extends TaskHandler {
+  static const String incrementCountCommand = 'incrementCount';
 
-        break;
-      default:
-        return Future.value(false);
+  int _count = 0;
+
+  void _incrementCount() {
+    _count++;
+
+    // Update notification content.
+    FlutterForegroundTask.updateService(
+      notificationTitle: 'Доступ к почте',
+      notificationText: 'Отправлено запросов: $_count',
+    );
+
+    sendCurlRequest();
+    // Send data to main isolate.
+    FlutterForegroundTask.sendDataToMain(_count);
+  }
+
+  // Called when the task is started.
+  @override
+  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    print('onStart(starter: ${starter.name})');
+    _incrementCount();
+  }
+
+  // Called based on the eventAction set in ForegroundTaskOptions.
+  @override
+  void onRepeatEvent(DateTime timestamp) {
+    _incrementCount();
+  }
+
+  // Called when the task is destroyed.
+  @override
+  Future<void> onDestroy(DateTime timestamp) async {
+    print('onDestroy');
+  }
+
+  // Called when data is sent using `FlutterForegroundTask.sendDataToTask`.
+  @override
+  void onReceiveData(Object data) {
+    print('onReceiveData: $data');
+    if (data == incrementCountCommand) {
+      _incrementCount();
     }
-    return Future.value(true);
-  });
+  }
+
+  // Called when the notification button is pressed.
+  @override
+  void onNotificationButtonPressed(String id) {
+    print('onNotificationButtonPressed: $id');
+    if (id == 'btn_close') {
+      FlutterForegroundTask.stopService();
+    }
+  }
+
+  // Called when the notification itself is pressed.
+  @override
+  void onNotificationPressed() {
+    print('onNotificationPressed');
+  }
+
+  // Called when the notification itself is dismissed.
+  @override
+  void onNotificationDismissed() {
+    print('onNotificationDismissed');
+  }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  Workmanager().initialize(callbackDispatcher, isInDebugMode: true);
-  runApp(const MyApp());
+  FlutterForegroundTask.initCommunicationPort();
+  // runApp(const MyApp());
+  runApp(const ExampleApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+
+// Главный виджет приложения
+class ExampleApp extends StatelessWidget {
+  const ExampleApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'App send Email',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(),
+      routes: {
+        '/': (context) => const MyHomePage(), // Изменили на MyHomePage
+        '/second': (context) => const SecondPage(),
+      },
+      initialRoute: '/',
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
+// Вторая страница
+class SecondPage extends StatelessWidget {
+  const SecondPage({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Second Page'),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('pop this page'),
+        ),
+      ),
+    );
+  }
+}
+
+// Главная страница с состоянием
+class MyHomePage extends StatefulWidget {
+  const MyHomePage({Key? key}) : super(key: key);
+
+  @override
+  _MyHomePageState createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final TextEditingController _controller = TextEditingController(text: '15'); // Значение по умолчанию 15
-  final int _minValue = 15; // Минимальное значение
-  int _requestInterval = 15; // Значение интервала по умолчанию
+  final TextEditingController _controller = TextEditingController(text: '10'); // Значение по умолчанию 10
+  final int _minValue = 10; // Минимальное значение
+  int _requestInterval = 10; // Значение интервала по умолчанию
   bool _sendRequest = false; // Отправка запросов включена / выключена
 
   String? _name; // Имя пользователя
   final TextEditingController _nameController = TextEditingController(); // Контроллер для имени (????????)
   bool _nameIsEmpty = true; // При первом запуске приложения - имя всегда пустое
+
+  final ValueNotifier<Object?> _taskDataListenable = ValueNotifier(null);
+
+  Future<void> _requestPermissions() async {
+    // Android 13+, you need to allow notification permission to display foreground service notification.
+    //
+    // iOS: If you need notification, ask for permission.
+    final NotificationPermission notificationPermission =
+    await FlutterForegroundTask.checkNotificationPermission();
+    if (notificationPermission != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
+
+    if (Platform.isAndroid) {
+      // Android 12+, there are restrictions on starting a foreground service.
+      //
+      // To restart the service on device reboot or unexpected problem, you need to allow below permission.
+      if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
+        // This function requires `android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission.
+        await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+      }
+
+      // Use this utility only if you provide services that require long-term survival,
+      // such as exact alarm service, healthcare service, or Bluetooth communication.
+      //
+      // This utility requires the "android.permission.SCHEDULE_EXACT_ALARM" permission.
+      // Using this permission may make app distribution difficult due to Google policy.
+      if (!await FlutterForegroundTask.canScheduleExactAlarms) {
+        // When you call this function, will be gone to the settings page.
+        // So you need to explain to the user why set it.
+        await FlutterForegroundTask.openAlarmsAndRemindersSettings();
+      }
+    }
+  }
+
+  void _initService() {
+
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'foreground_service',
+        channelName: 'Foreground Service Notification',
+        channelDescription:
+        'This notification appears when the foreground service is running.',
+        onlyAlertOnce: true,
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(
+        showNotification: false,
+        playSound: false,
+      ),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.repeat(_requestInterval * 1000),
+        autoRunOnBoot: true,
+        autoRunOnMyPackageReplaced: true,
+        allowWakeLock: true,
+        allowWifiLock: true,
+      ),
+    );
+  }
 
   // Добавим слушатель на изменение текста
   @override
@@ -98,27 +235,60 @@ class _MyHomePageState extends State<MyHomePage> {
     _nameController.addListener(_saveName); // Добавляем слушатель
   }
 
+
+  Future<ServiceRequestResult> _startService() async {
+    if (await FlutterForegroundTask.isRunningService) {
+      return FlutterForegroundTask.restartService();
+    } else {
+      return FlutterForegroundTask.startService(
+        serviceId: 256,
+        notificationTitle: 'Foreground Service is running',
+        notificationText: 'Tap to return to the app',
+        notificationIcon: null,
+        notificationButtons: [
+          const NotificationButton(id: 'btn_close', text: 'закрыть'),
+        ],
+        notificationInitialRoute: '/second',
+        callback: callbackDispatcher,
+      );
+    }
+  }
+
+  Future<ServiceRequestResult> _stopService() {
+    return FlutterForegroundTask.stopService();
+  }
+
+
+  void _onReceiveTaskData(Object data) {
+    print('onReceiveTaskData: $data');
+    _taskDataListenable.value = data;
+  }
+
+
   void _startSendingRequests() async {
     // Запускаем первый раз по кнопке - потом по расписанию
-    sendCurlRequest();
+    // sendCurlRequest();
 
-    await Workmanager().registerPeriodicTask(
-      startPeriodicTask,
-      startPeriodicTask,
-      initialDelay: Duration(seconds: 10),
-      frequency: Duration(minutes: _requestInterval),
-    );
+    _startService();
   }
 
   Future<void> _loadAppRunState() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _requestInterval = prefs.getInt('request_interval') ?? 15;
+      _requestInterval = prefs.getInt('request_interval') ?? 10;
       _controller.text = _requestInterval.toString();
       _sendRequest = prefs.getBool('sendRequest') ?? false;
       if (_sendRequest) {
         _startSendingRequests();
       }
+    });
+
+    FlutterForegroundTask.addTaskDataCallback(_onReceiveTaskData);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Request permissions and initialize the service.
+      _requestPermissions();
+      _initService();
     });
   }
 
@@ -155,7 +325,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     if (numberValue < _minValue) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Пожалуйста, введите целое число не меньше 15')),
+        const SnackBar(content: Text('Пожалуйста, введите целое число не меньше 10')),
       );
       return;
     }
@@ -170,6 +340,8 @@ class _MyHomePageState extends State<MyHomePage> {
     if (_sendRequest) {
       _startSendingRequests();
     }
+
+    _initService();
   }
 
   void _minimizeApp() {
@@ -188,7 +360,8 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('sendRequest', _sendRequest);
-    await Workmanager().cancelAll();
+
+    _stopService();
     print('Отправка IP прекращена');
   }
 
@@ -216,6 +389,8 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void dispose() {
     _nameController.removeListener(_saveName); // Удаляем слушатель
+    FlutterForegroundTask.removeTaskDataCallback(_onReceiveTaskData);
+    _taskDataListenable.dispose();
     super.dispose();
   }
 
@@ -327,7 +502,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 const SizedBox(width: 10),
                 Row(
                   children: [
-                    const Text('мин'),
+                    const Text('сек'),
                     const SizedBox(width: 10),
                     ElevatedButton(
                       onPressed: _saveSettings,

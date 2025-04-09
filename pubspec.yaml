@@ -24,6 +24,7 @@ dependencies:
       url: https://github.com/fluttercommunity/flutter_workmanager.git
       path: workmanager
       ref: main
+  flutter_foreground_task: ^8.17.0
 
 dev_dependencies:
   flutter_test:
