@@ -84,12 +84,17 @@ class MyTaskHandler extends TaskHandler {
 
   // Called when the notification button is pressed.
   @override
-  void onNotificationButtonPressed(String id) {
+  void onNotificationButtonPressed(String id) async {
     print('onNotificationButtonPressed: $id');
     if (id == 'btn_close') {
-      FlutterForegroundTask.stopService();
+      // Останавливаем сервис
+      await FlutterForegroundTask.stopService();
+
+      // Отправляем данные в основное приложение
+      FlutterForegroundTask.sendDataToMain({'action': 'stopService'});
     }
   }
+
 
   // Called when the notification itself is pressed.
   @override
@@ -248,7 +253,7 @@ class _MyHomePageState extends State<MyHomePage> {
         notificationButtons: [
           const NotificationButton(id: 'btn_close', text: 'закрыть'),
         ],
-        notificationInitialRoute: '/second',
+        notificationInitialRoute: '/',
         callback: callbackDispatcher,
       );
     }
@@ -259,10 +264,21 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
 
-  void _onReceiveTaskData(Object data) {
+  void _onReceiveTaskData(Object? data) {
     print('onReceiveTaskData: $data');
-    _taskDataListenable.value = data;
+
+    if (data is Map<String, dynamic> && data['action'] == 'stopService') {
+      setState(() {
+        _sendRequest = false; // Останавливаем отправку запросов
+      });
+
+      // Сохраняем состояние
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setBool('sendRequest', false);
+      });
+    }
   }
+
 
 
   void _startSendingRequests() async {
@@ -272,7 +288,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _startService();
   }
 
-  Future<void> _loadAppRunState() async {
+  void _loadAppRunState() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       _requestInterval = prefs.getInt('request_interval') ?? 10;
@@ -283,6 +299,7 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     });
 
+    // Слушатель данных от фонового процесса
     FlutterForegroundTask.addTaskDataCallback(_onReceiveTaskData);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
