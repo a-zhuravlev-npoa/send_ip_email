@@ -215,6 +215,7 @@ class _MyHomePageState extends State<MyHomePage> {
         channelDescription:
         'This notification appears when the foreground service is running.',
         onlyAlertOnce: true,
+        showBadge: true,
       ),
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: false,
@@ -249,7 +250,11 @@ class _MyHomePageState extends State<MyHomePage> {
         serviceId: 256,
         notificationTitle: 'Foreground Service is running',
         notificationText: 'Tap to return to the app',
-        notificationIcon: null,
+        notificationIcon: const NotificationIcon(
+          metaDataName: 'ru.ssh.send_ip_email.service.ICON',
+          //metaDataName: '@drawable/ic_notification', // Ссылка на маленькую иконку
+          backgroundColor: Colors.blue,     // Задайте цвет фона
+        ),
         notificationButtons: [
           const NotificationButton(id: 'btn_close', text: 'закрыть'),
         ],
@@ -418,164 +423,201 @@ class _MyHomePageState extends State<MyHomePage> {
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('App for email'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: <Widget>[
-            const SizedBox(height: 20),
-            const Text(
-              'Приложение для отправки IP-адресов. Необходимо для работы с Email.',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
-            ),
-            const SizedBox(height: 20),
-            RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
-                children: <TextSpan>[
-                  const TextSpan(text: 'Статус приложения: '),
-                  TextSpan(
-                    text: _sendRequest ? 'отправляет запросы' : 'не отправляет запросы',
-                    style: TextStyle(
-                      color: _sendRequest ? Colors.green : Colors.red,
-                    ),
-                  ),
-                ],
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: <Widget>[
+              const SizedBox(height: 20),
+              const Text(
+                'Приложение для отправки IP-адресов. Необходимо для работы с Email.',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
               ),
-            ),
-            const SizedBox(height: 20),
-            RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
-                children: <TextSpan>[
-                  const TextSpan(text: 'Отправлять запросы от имени: '),
-                  TextSpan(
-                    text: (_name != null && _name!.isNotEmpty) ? _name : 'имя не задано',
-                    style: TextStyle(
-                      color: Colors.blue,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-            const Text(
-              'Настройки приложения',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Ваше имя:',
-            ),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Ваше имя',
-              ),
-              textCapitalization: TextCapitalization.sentences,
-              onChanged: (text) {
-                if (text.isNotEmpty) {
-                  // Изменяем первую букву на заглавную
-                  final capitalized = text[0].toUpperCase() + text.substring(1);
-                  _nameController.value = _nameController.value.copyWith(
-                    text: capitalized,
-                    selection: TextSelection.collapsed(offset: capitalized.length),
-                  );
-                }
-              },
-            ),
-
-            // Имя не задано
-            if (_name == null || _name!.isEmpty) ...[
               const SizedBox(height: 20),
               RichText(
                 text: TextSpan(
-                  text: 'Имя не должно быть пустым! Введите имя и нажмите кнопку "Включить отправку IP."',
-                  style: TextStyle(color: Colors.red), // Здесь устанавливаем цвет текста
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 30),
-            const Text(
-              'Отправлять запрос раз в:',
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Container(
-                  width: 120,
-                  child: TextField(
-                    controller: _controller,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: 'Целое число',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Row(
-                  children: [
-                    const Text('сек'),
-                    const SizedBox(width: 10),
-                    ElevatedButton(
-                      onPressed: _saveSettings,
-                      child: const Text('OK'),
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
+                  children: <TextSpan>[
+                    const TextSpan(text: 'Статус приложения: '),
+                    TextSpan(
+                      text: _sendRequest ? 'отправляет запросы' : 'не отправляет запросы',
+                      style: TextStyle(
+                        color: _sendRequest ? Colors.green : Colors.red,
+                      ),
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 20),
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
+                  children: <TextSpan>[
+                    const TextSpan(text: 'Отправлять запросы от имени: '),
+                    TextSpan(
+                      text: (_name != null && _name!.isNotEmpty) ? _name : 'имя не задано',
+                      style: TextStyle(
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              const Text(
+                'Настройки приложения',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Ваше имя:',
+              ),
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'Ваше имя',
+                ),
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: (text) {
+                  if (text.isNotEmpty) {
+                    // Изменяем первую букву на заглавную
+                    final capitalized = text[0].toUpperCase() + text.substring(1);
+                    _nameController.value = _nameController.value.copyWith(
+                      text: capitalized,
+                      selection: TextSelection.collapsed(offset: capitalized.length),
+                    );
+                  }
+                },
+              ),
+
+              // Имя не задано
+              if (_name == null || _name!.isEmpty) ...[
+                const SizedBox(height: 20),
+                RichText(
+                  text: TextSpan(
+                    text: 'Имя не должно быть пустым! Введите имя и нажмите кнопку "Включить отправку IP."',
+                    style: TextStyle(color: Colors.red), // Здесь устанавливаем цвет текста
+                  ),
+                ),
               ],
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _minimizeApp,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
+
+              const SizedBox(height: 30),
+              const Text(
+                'Отправлять запрос раз в:',
               ),
-              child: const Text('Свернуть приложение'),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Container(
+                    width: 120,
+                    child: TextField(
+                      controller: _controller,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: 'Целое число',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Row(
+                    children: [
+                      const Text('сек'),
+                      const SizedBox(width: 10),
+                      ElevatedButton(
+                        onPressed: _saveSettings,
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 40),
 
 
-
-            // Имя не задано и запросы не отправляются
-            if(_nameIsEmpty && !_sendRequest) ...[
-              ElevatedButton(
-                onPressed: _sendStart,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
+              // Имя не задано и запросы не отправляются
+              if(_nameIsEmpty && !_sendRequest) ...[
+                ElevatedButton(
+                  onPressed: _sendStart,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
+                  ),
+                  child: const Text('Включить отправку IP',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-                child: const Text('Включить отправку IP'),
-              ),
-            ],
+              ],
 
-            // Имя задано и запросы не отправляются
-            if (!_nameIsEmpty && !_sendRequest) ...[
-              ElevatedButton(
-                onPressed: _sendStart,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
+              // Имя задано и запросы не отправляются
+              if (!_nameIsEmpty && !_sendRequest) ...[
+                ElevatedButton(
+                  onPressed: _sendStart,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
+                  ),
+                  child: const Text('Включить отправку IP',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-                child: const Text('Включить отправку IP'),
-              ),
-            ],
+              ],
 
-            // Имя задано и запросы отправляются
-            if (!_nameIsEmpty && _sendRequest) ...[
-              ElevatedButton(
-                onPressed: _sendStop,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+              // Имя задано и запросы отправляются
+              if (!_nameIsEmpty && _sendRequest) ...[
+                ElevatedButton(
+                  onPressed: _sendStop,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
+                  ),
+                  child: const Text('Прекратить отправку IP',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-                child: const Text('Прекратить отправку IP'),
-              ),
-            ],
+              ],
 
-            const SizedBox(height: 50),
-          ],
+              const SizedBox(height: 30),
+
+              Divider(
+                color: Colors.blue.withOpacity(0.4), // Цвет линии
+                thickness: 1.3, // Толщина линии
+                height: 5.0, // Высота вокруг линии
+              ),
+              Divider(
+                color: Colors.blue.withOpacity(0.4), // Цвет линии
+                thickness: 1.3, // Толщина линии
+                height: 5.0, // Высота вокруг линии
+              ),
+
+
+              const SizedBox(height: 30),
+
+              ElevatedButton(
+                onPressed: _minimizeApp,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                ),
+                child: const Text('Свернуть приложение'),
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
