@@ -13,8 +13,8 @@ android {
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
-        sourceCompatibility = JavaVersion.VERSION_17 // Изменено на актуальную версию
-        targetCompatibility = JavaVersion.VERSION_17 // Изменено на актуальную версию
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
@@ -43,4 +43,10 @@ dependencies {
 
 flutter {
     source = "../.."
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
 }
