@@ -5,14 +5,15 @@ import 'package:http/http.dart' as http;
 
 final String urlString = "http://mail.him-met.ru:83/set-ip/";
 
-Future<void> sendCurlRequest(String nameStr) async {
-  if (nameStr.isEmpty) return; // Не отправляем запрашиваемый, если имя пустое
+Future<void> sendCurlRequest() async {
+  final prefs = await SharedPreferences.getInstance();
+  String nameStr = prefs.getString('user_name') ?? '';
 
   try {
     String responseStr = '$urlString?name=$nameStr';
     final response = await http.get(Uri.parse(responseStr));
     print("Отправляю запрос: $responseStr");
-    print("Получаю ответ: ${response.statusCode}");
+    print("Получаю ответ: $response");
 
     if (response.statusCode == 200) {
       print("Запрос успешен: ${response.body}");
@@ -52,17 +53,22 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final TextEditingController _controller = TextEditingController(text: '10');
-  String? _name;
-  final TextEditingController _nameController = TextEditingController();
-  bool _sendRequest = false;
-  late int _requestInterval;
+  final TextEditingController _controller = TextEditingController(text: '10'); // Значение по умолчанию 10
+  final int _minValue = 10; // Минимальное значение
+  int _requestInterval = 10; // Значение интервала по умолчанию
+  bool _sendRequest = false; // Отправка запросов включена / выключена
+
+  String? _name; // Имя пользователя
+  final TextEditingController _nameController = TextEditingController(); // Контроллер для имени (????????)
+  bool _nameIsEmpty = true; // При первом запуске приложения - имя всегда пустое
 
   @override
   void initState() {
     super.initState();
     _loadAppRunState();
-    _loadName();
+    _loadName(); // Загружаем имя при инициализации
+
+    _nameController.addListener(_saveName); // Добавляем слушатель
   }
 
   Future<void> _loadAppRunState() async {
@@ -78,21 +84,71 @@ class _MyHomePageState extends State<MyHomePage> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
       _name = prefs.getString('user_name');
-      _nameController.text = _name ?? '';
+      _nameIsEmpty = _name == null || _name!.isEmpty; // Убедиться, что мы проверяем на null
+      _nameController.text = _name ?? ''; // Установите текст контроллера
     });
   }
 
   Future<void> _saveName() async {
-    String userName = _nameController.text;
+    String userName = _nameController.text; // Получаем значение из TextField
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_name', userName);
+    await prefs.setString('user_name', userName); // Сохраняем имя в SharedPreferences
     setState(() {
-      _name = userName;
+      _name = userName; // Обновляем состояние имени
+      // print(_name);
     });
   }
 
-  void _sendStart() {
+  Future<int> _saveSettings() async {
+    String inputValue = _controller.text;
+    int? numberValue = int.tryParse(inputValue);
+
+    if (numberValue == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Пожалуйста, введите корректное целое число')),
+      );
+      return 0;
+    }
+
+    if (numberValue < _minValue) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Пожалуйста, введите целое число не меньше 10')),
+      );
+      return 0;
+    }
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('request_interval', numberValue);
+    setState(() {
+      _requestInterval = numberValue;
+    });
+
+    Timer.periodic(Duration(seconds: _requestInterval), (timer) {
+      if (_sendRequest) {
+        sendCurlRequest();
+      } else {
+        timer.cancel();
+      }
+    });
+
+    return 1;
+  }
+
+  Future<void> _sendStop() async {
+    setState(() {
+      _sendRequest = false;
+    });
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('sendRequest', _sendRequest);
+
+    print('Отправка IP прекращена');
+  }
+
+  void _sendStart() async {
     if (_name == null || _name!.isEmpty) {
+      _nameIsEmpty = true;
+      _sendRequest = false;
+      print('Имя не задано, отправка IP невозможна');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Вы не задали имя')),
       );
@@ -100,22 +156,27 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     setState(() {
+      _nameIsEmpty = false;
+    });
+
+    int result = await _saveSettings();
+    if (result == 0) {
+      return;
+    }
+
+    setState(() {
       _sendRequest = true;
     });
 
-    Timer.periodic(Duration(seconds: _requestInterval), (timer) {
-      if (_sendRequest) {
-        sendCurlRequest(_name!);
-      } else {
-        timer.cancel();
-      }
-    });
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('sendRequest', _sendRequest);
+    print('Отправка IP включена');
   }
 
-  void _sendStop() {
-    setState(() {
-      _sendRequest = false;
-    });
+  @override
+  void dispose() {
+    _nameController.removeListener(_saveName); // Удаляем слушатель
+    super.dispose();
   }
 
   @override
