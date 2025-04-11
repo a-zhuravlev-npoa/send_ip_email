@@ -122,49 +122,108 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('App for Email'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: <Widget>[
-            const Text(
-              'Приложение для отправки IP-адресов.',
-              style: TextStyle(fontSize: 14),
-            ),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(hintText: 'Ваше имя'),
-              onChanged: (value) => _saveName(),
-            ),
-            const SizedBox(height: 10),
-            const Text('Интервал отправки запросов (в секундах):'),
-            TextField(
-              controller: _controller,
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 10),
-            ElevatedButton(
-              onPressed: () {
-                // Сохранение настроек
-                int? newInterval = int.tryParse(_controller.text);
-                if (newInterval != null && newInterval >= 10) {
-                  setState(() {
-                    _requestInterval = newInterval;
-                  });
-                }
-              },
-              child: const Text('Сохранить настройки'),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _sendRequest ? _sendStop : _sendStart,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _sendRequest ? Colors.orange : Colors.green,
+      body: Center(
+        child: Container(
+          width: 500,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: <Widget>[
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Приложение для отправки IP-адресов.',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal),
+                  ),
+                  const SizedBox(height: 20),
+                  RichText(
+                    text: TextSpan(
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black),
+                      children: <TextSpan>[
+                        const TextSpan(text: 'Статус приложения: '),
+                        TextSpan(
+                          text: _sendRequest ? 'отправляет запросы' : 'не отправляет запросы',
+                          style: TextStyle(
+                            color: _sendRequest ? Colors.green : Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Ваше имя:'),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Ваше имя',
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Интервал отправки запросов (в секундах):'),
+                  TextField(
+                    controller: _controller,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: 'Целое число',
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Кнопки для управления отправкой IP
+                  if (_name == null || _name!.isEmpty) ...[
+                    ElevatedButton(
+                      onPressed: _sendStart,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
+                      ),
+                      child: const Text('Включить отправку IP',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ] else if (!_sendRequest) ...[
+                    ElevatedButton(
+                      onPressed: _sendStart,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
+                      ),
+                      child: const Text('Включить отправку IP',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    ElevatedButton(
+                      onPressed: _sendStop,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 32.0),
+                      ),
+                      child: const Text('Прекратить отправку IP',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 30),
+                ],
               ),
-              child: Text(_sendRequest ? 'Прекратить отправку IP' : 'Включить отправку IP'),
             ),
-          ],
+          ),
         ),
       ),
     );
