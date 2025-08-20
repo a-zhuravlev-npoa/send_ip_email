@@ -5,10 +5,7 @@ import 'package:http/http.dart' as http;
 
 final String urlString = "https://mail.him-met.ru:83/set-ip/";
 
-Future<void> sendCurlRequest() async {
-  final prefs = await SharedPreferences.getInstance();
-  String nameStr = prefs.getString('user_name') ?? '';
-
+Future<void> sendCurlRequest(String nameStr) async {
   try {
     String responseStr = '$urlString?name=$nameStr';
     final response = await http.get(Uri.parse(responseStr));
@@ -68,7 +65,20 @@ class _MyHomePageState extends State<MyHomePage> {
     _loadAppRunState();
     _loadName(); // Загружаем имя при инициализации
 
-    _nameController.addListener(_saveName); // Добавляем слушатель
+    _nameController.addListener(() {
+      String text = _nameController.text.trim();
+      if (text.isNotEmpty) {
+        // Меняем только первую букву на заглавную, остальные - на строчные
+        String capitalizedText = _capitalize(text);
+        // Обновляем текст контроллера только если он изменился
+        if (text != capitalizedText) {
+          _nameController.value = TextEditingValue(
+            text: capitalizedText,
+            selection: TextSelection.collapsed(offset: capitalizedText.length),
+          );
+        }
+      }
+    });
   }
 
   Future<void> _loadAppRunState() async {
@@ -77,20 +87,29 @@ class _MyHomePageState extends State<MyHomePage> {
       _requestInterval = prefs.getInt('request_interval') ?? 10;
       _controller.text = _requestInterval.toString();
       _sendRequest = prefs.getBool('sendRequest') ?? false;
+
+      // при презагрузке приложения сразу отправляем запросы
+      if (_sendRequest && _name != null && !_name!.isEmpty && _isValidFullName(_name!) ) {
+          _sendStart();
+      }
     });
   }
 
   Future<void> _loadName() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _name = prefs.getString('user_name');
-      _nameIsEmpty = _name == null || _name!.isEmpty; // Убедиться, что мы проверяем на null
-      _nameController.text = _name ?? ''; // Установите текст контроллера
-    });
+        _name = prefs.getString('user_name');
+        if (_name != null && _name!.isNotEmpty) {
+          _name = _capitalize(_name!); // Применяем форматирование
+        }
+        _nameIsEmpty = _name == null || _name!.isEmpty;
+        _nameController.text = _name ?? '';
+      });
   }
 
   Future<void> _saveName() async {
     String userName = _nameController.text; // Получаем значение из TextField
+    userName = _capitalize(userName);
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_name', userName); // Сохраняем имя в SharedPreferences
     setState(() {
@@ -125,7 +144,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
     Timer.periodic(Duration(seconds: _requestInterval), (timer) {
       if (_sendRequest) {
-        sendCurlRequest();
+        sendCurlRequest(_name!); // Передаем имя в функцию отправки
       } else {
         timer.cancel();
       }
@@ -140,17 +159,14 @@ class _MyHomePageState extends State<MyHomePage> {
     });
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('sendRequest', _sendRequest);
-
-    print('Отправка IP прекращена');
   }
 
   void _sendStart() async {
-    if (_name == null || _name!.isEmpty) {
+    if (_name == null || _name!.isEmpty || !_isValidFullName(_name!)) {
       _nameIsEmpty = true;
       _sendRequest = false;
-      print('Имя не задано, отправка IP невозможна');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Вы не задали имя')),
+        const SnackBar(content: Text('Вы не задали валидное имя (Фамилия Имя)')),
       );
       return;
     }
@@ -168,14 +184,28 @@ class _MyHomePageState extends State<MyHomePage> {
       _sendRequest = true;
     });
 
+    // Отправляем первый запрос сразу после включения отправки
+    await sendCurlRequest(_name!);
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('sendRequest', _sendRequest);
-    print('Отправка IP включена');
+  }
+
+  String _capitalize(String name) {
+    return name.split(' ').map((word) =>
+        word.isNotEmpty ? word[0].toUpperCase() + word.substring(1).toLowerCase() : ''
+    ).join(' ');
+  }
+
+  bool _isValidFullName(String fullName) {
+      List<String> parts = fullName.split(' ');
+      // Проверяем, состоит ли строка из двух частей и каждая часть содержит только буквы
+      return parts.length == 2 && parts.every((part) => RegExp(r'^[A-Za-zА-Яа-яЁё]+$').hasMatch(part));
   }
 
   @override
   void dispose() {
-    _nameController.removeListener(_saveName); // Удаляем слушатель
+    _nameController.removeListener(_saveName);
     super.dispose();
   }
 
@@ -216,12 +246,12 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  const Text('Ваше имя:'),
+                  const Text('Ваше ФИО:'),
                   TextField(
                     controller: _nameController,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
-                      hintText: 'Ваше имя',
+                      hintText: 'Фамилия Имя',
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -237,7 +267,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   const SizedBox(height: 20),
 
                   // Кнопки для управления отправкой IP
-                  if (_name == null || _name!.isEmpty) ...[
+                  if (_name == null || _name!.isEmpty || !_isValidFullName(_name!)) ...[
                     ElevatedButton(
                       onPressed: _sendStart,
                       style: ElevatedButton.styleFrom(
