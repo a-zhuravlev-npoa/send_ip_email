@@ -65,20 +65,7 @@ class _MyHomePageState extends State<MyHomePage> {
     _loadAppRunState();
     _loadName(); // Загружаем имя при инициализации
 
-    _nameController.addListener(() {
-      String text = _nameController.text.trim();
-      if (text.isNotEmpty) {
-        // Меняем только первую букву на заглавную, остальные - на строчные
-        String capitalizedText = _capitalize(text);
-        // Обновляем текст контроллера только если он изменился
-        if (text != capitalizedText) {
-          _nameController.value = TextEditingValue(
-            text: capitalizedText,
-            selection: TextSelection.collapsed(offset: capitalizedText.length),
-          );
-        }
-      }
-    });
+   _nameController.addListener(_saveName); // Добавляем слушатель
   }
 
   Future<void> _loadAppRunState() async {
@@ -99,9 +86,9 @@ class _MyHomePageState extends State<MyHomePage> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
         _name = prefs.getString('user_name');
-        if (_name != null && _name!.isNotEmpty) {
-          _name = _capitalize(_name!); // Применяем форматирование
-        }
+//         if (_name != null && _name!.isNotEmpty) {
+//           _name = _capitalize(_name!); // Применяем форматирование
+//         }
         _nameIsEmpty = _name == null || _name!.isEmpty;
         _nameController.text = _name ?? '';
       });
@@ -109,7 +96,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> _saveName() async {
     String userName = _nameController.text; // Получаем значение из TextField
-    userName = _capitalize(userName);
+    // userName = _capitalize(userName);
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString('user_name', userName); // Сохраняем имя в SharedPreferences
     setState(() {
@@ -198,9 +185,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   bool _isValidFullName(String fullName) {
-      List<String> parts = fullName.split(' ');
+      //List<String> parts = fullName.split(' ');
       // Проверяем, состоит ли строка из двух частей и каждая часть содержит только буквы
-      return parts.length == 2 && parts.every((part) => RegExp(r'^[A-Za-zА-Яа-яЁё]+$').hasMatch(part));
+      //return parts.length == 2 && parts.every((part) => RegExp(r'^[A-Za-zА-Яа-яЁё]+$').hasMatch(part));
+      return true;
   }
 
   @override
