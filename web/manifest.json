@@ -1,6 +1,6 @@
 {
-    "name": "My PWA App",
-    "short_name": "PWA",
+    "name": "App for Email",
+    "short_name": "App for Email",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#ffffff",
