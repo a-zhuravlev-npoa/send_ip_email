@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 
-final String urlString = "https://mail.him-met.ru/set-ip/";
+final String urlString = "http://mail.him-met.ru:83/set-ip/";
 
 Future<void> sendCurlRequest() async {
   final prefs = await SharedPreferences.getInstance();
